@@ -41,6 +41,81 @@
 static pmix_proc_t my_proc;
 static char *dbgvalue=NULL;
 
+/********************************************/
+/* Specific to inter-runtime communications */
+typedef struct {
+    pmix_info_t *info;
+    size_t      ninfo;
+    int         *active;
+    char        *nspace;
+} mydata_t;
+
+pmix_status_t   code            = PMIX_MODEL_DECLARED;
+
+#if 0
+static void
+info_event_cb (pmix_status_t status, void *cbdata)
+{   
+    mydata_t        *cd     = (mydata_t*)cbdata;
+    size_t          n_keys;
+    int             i;
+    pmix_proc_t     proc;   
+    pmix_value_t    *val    = NULL;
+    
+    fprintf (stderr, "[%s:%s:%d] Check\n", __FILE__, __func__, __LINE__);
+    n_keys = cd->ninfo;
+    for (i = 0; i < n_keys; i++)
+    {   
+        if (strcmp (cd->info[i].key, "pmix.pgm.model") == 0 &&
+            strcmp (cd->info[i].value.data.string, "OpenMP") == 0)
+        {   
+            fprintf (stdout, "%s - MPI rank - Just detected an OpenMP runtime!!\n", __func__);
+        }
+
+/*
+        if (strcmp (cd->info[i].key, "pmix.local.size") == 0)
+        {   
+            n_node_local_ranks = cd->info[i].value.data.uint32;
+            fprintf (stdout, "%s - MPI rank - Just detected the number of node local MPI ranks: %d\n", __func__, (int)n_node_local_ranks);
+        }
+*/
+    }
+
+    fprintf (stderr, "[%s:%s:%d] Check\n", __FILE__, __func__, __LINE__);
+    PMIX_INFO_FREE (cd->info, cd->ninfo);
+    free (cd);
+    fprintf (stderr, "[%s:%s:%d] Check\n", __FILE__, __func__, __LINE__);
+}
+
+static void release_fn(size_t evhdlr_registration_id,
+                       pmix_status_t status,
+                       const pmix_proc_t *source,
+                       pmix_info_t info[], size_t ninfo,
+                       pmix_info_t results[], size_t nresults,
+                       pmix_event_notification_cbfunc_fn_t cbfunc,
+                       void *cbdata)
+{   
+    fprintf (stdout, "%s:%s - Start\n", __FILE__, __func__);
+    /* tell the event handler state machine that we are the last step */
+    if (NULL != cbfunc) {
+        //cbfunc(PMIX_EVENT_ACTION_COMPLETE, NULL, 0, NULL, NULL, cbdata);
+        cbfunc (PMIX_SUCCESS, NULL, 0, NULL, NULL, cbdata);
+    }
+    
+    /* do whatever we want/need to do to coordinate */
+    fprintf (stdout, "%s:%s - End\n", __FILE__, __func__);
+}
+
+static void
+evhandler_reg_callbk (pmix_status_t status, size_t evhandler_ref, void *cbdata)
+{   
+    fprintf (stdout, "%s:%s - Start\n", __FILE__, __func__);
+    fprintf (stdout, "%s:%s - End\n", __FILE__, __func__);
+}
+#endif
+
+/********************************************/
+
 static void errreg_cbfunc (pmix_status_t status,
                            size_t errhandler_ref,
                            void *cbdata)
@@ -68,6 +143,10 @@ int ext2x_client_init(opal_list_t *ilist)
     size_t ninfo, n;
     opal_value_t *ival;
 
+    char            *mpi_model          = "MPI";
+    char            *mpi_modelname      = "openMPI";
+    char            *mpi_version        = "master";
+
     opal_output_verbose(1, opal_pmix_base_framework.framework_output,
                         "PMIx_client init");
 
@@ -86,7 +165,7 @@ int ext2x_client_init(opal_list_t *ilist)
     }
 
     /* convert the incoming list to info structs */
-    if (NULL != ilist && 0 < (ninfo = opal_list_get_size(ilist))) {
+    if (NULL != ilist && 0 < (ninfo = opal_list_get_size(ilist) + 3)) {
         PMIX_INFO_CREATE(pinfo, ninfo);
         n=0;
         OPAL_LIST_FOREACH(ival, ilist, opal_value_t) {
@@ -94,6 +173,13 @@ int ext2x_client_init(opal_list_t *ilist)
             ext2x_value_load(&pinfo[n].value, ival);
             ++n;
         }
+
+        /* share MPI-level data with other runtimes */
+        fprintf (stderr, "[%s:%s:%d] Check\n", __FILE__, __func__, __LINE__);
+        PMIX_INFO_LOAD (&pinfo[n], PMIX_PROGRAMMING_MODEL, mpi_model, PMIX_STRING);
+        PMIX_INFO_LOAD (&pinfo[n+1], PMIX_MODEL_LIBRARY_NAME, mpi_modelname, PMIX_STRING);
+        PMIX_INFO_LOAD (&pinfo[n+2], PMIX_MODEL_LIBRARY_VERSION, mpi_version, PMIX_STRING);
+        fprintf (stderr, "[%s:%s:%d] Check\n", __FILE__, __func__, __LINE__);
     } else {
         pinfo = NULL;
         ninfo = 0;
@@ -147,9 +233,11 @@ int ext2x_client_init(opal_list_t *ilist)
     opal_list_append(&mca_pmix_ext2x_component.events, &event->super);
     PMIX_INFO_CREATE(pinfo, 1);
     PMIX_INFO_LOAD(&pinfo[0], PMIX_EVENT_HDLR_NAME, "OPAL-PMIX-2X-DEFAULT", PMIX_STRING);
+
     PMIx_Register_event_handler(NULL, 0, NULL, 0, ext2x_event_hdlr, errreg_cbfunc, event);
     OPAL_PMIX_WAIT_THREAD(&event->lock);
     PMIX_INFO_FREE(pinfo, 1);
+    fprintf (stderr, "[%s:%s:%d] Check\n", __FILE__, __func__, __LINE__);
 
     return OPAL_SUCCESS;
 

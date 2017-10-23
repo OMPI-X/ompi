@@ -289,6 +289,10 @@ void ext2x_event_hdlr(size_t evhdlr_registration_id,
                 OBJ_RELEASE(iptr);
                 continue;
             }
+            if (strcmp (iptr->key, "pmix.pgm.model") == 0)
+            {
+                fprintf (stderr, "[%s:%s:%d] Key: %s/%s\n", __FILE__, __func__, __LINE__, iptr->key, iptr->data.string);
+            }
             opal_list_append(cd->info, &iptr->super);
         }
     }
