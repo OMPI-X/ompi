@@ -270,7 +270,7 @@ int orte_pmix_server_register_nspace(orte_job_t *jdata, bool force)
         kv = OBJ_NEW(opal_value_t);
         kv->key = strdup(OPAL_PMIX_AVAIL_PHYS_MEMORY);
         kv->type = OPAL_UINT64;
-        kv->data.uint64 = machine->memory.total_memory;
+        kv->data.uint64 = machine->total_memory;
         opal_list_append(info, &kv->super);
     }
 

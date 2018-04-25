@@ -46,6 +46,11 @@
 #include "orte/mca/rmaps/rmaps_types.h"
 
 #include "orte/mca/rtc/base/base.h"
+
+#if HWLOC_API_VERSION >= 0x20000
+#include "hwloc/shmem.h"
+#endif
+
 #include "rtc_hwloc.h"
 
 static int init(void);

@@ -54,6 +54,10 @@
 #include "opal/mca/hwloc/hwloc-internal.h"
 #include "opal/mca/hwloc/base/base.h"
 
+#if HWLOC_API_VERSION >= 0x20000
+#include "hwloc/shmem.h"
+#endif
+
 static bool topo_in_shmem = false;
 
 /*
@@ -149,7 +153,8 @@ int opal_hwloc_base_filter_cpus(hwloc_topology_t topo)
             avail = hwloc_bitmap_alloc();
             hwloc_bitmap_and(avail, root->online_cpuset, root->allowed_cpuset);
         #else
-            avail = hwloc_bitmap_dup(root->allowed_cpuset);
+            //avail = hwloc_bitmap_dup(root->allowed_cpuset);
+            avail = hwloc_bitmap_dup(hwloc_topology_get_allowed_cpuset(topo));
         #endif
         OPAL_OUTPUT_VERBOSE((5, opal_hwloc_base_framework.framework_output,
                              "hwloc:base: no cpus specified - using root available cpuset"));
@@ -173,7 +178,7 @@ int opal_hwloc_base_filter_cpus(hwloc_topology_t topo)
                         hwloc_bitmap_and(pucpus, pu->online_cpuset, pu->allowed_cpuset);
                     #else
                         hwloc_bitmap_free(pucpus);
-                        pucpus = hwloc_bitmap_dup(pu->allowed_cpuset);
+                        hwloc_bitmap_and(pucpus, pu->cpuset, hwloc_topology_get_allowed_cpuset(topo));
                     #endif
                     hwloc_bitmap_or(res, avail, pucpus);
                     hwloc_bitmap_copy(avail, res);
@@ -195,7 +200,7 @@ int opal_hwloc_base_filter_cpus(hwloc_topology_t topo)
                             hwloc_bitmap_and(pucpus, pu->online_cpuset, pu->allowed_cpuset);
                         #else
                             hwloc_bitmap_free(pucpus);
-                            pucpus = hwloc_bitmap_dup(pu->allowed_cpuset);
+                            hwloc_bitmap_and(pucpus, pu->cpuset, hwloc_topology_get_allowed_cpuset(topo));
                         #endif
                         hwloc_bitmap_or(res, avail, pucpus);
                         hwloc_bitmap_copy(avail, res);
@@ -2213,6 +2218,7 @@ char* opal_hwloc_base_get_topo_signature(hwloc_topology_t topo)
     char *sig=NULL, *arch = NULL, *endian;
     hwloc_obj_t obj;
     unsigned i;
+    int size;
 
     nnuma = opal_hwloc_base_get_nbobjs_by_type(topo, HWLOC_OBJ_NODE, 0, OPAL_HWLOC_AVAILABLE);
     nsocket = opal_hwloc_base_get_nbobjs_by_type(topo, HWLOC_OBJ_SOCKET, 0, OPAL_HWLOC_AVAILABLE);
@@ -2244,8 +2250,11 @@ char* opal_hwloc_base_get_topo_signature(hwloc_topology_t topo)
     endian = "unknown";
 #endif
 
-    asprintf(&sig, "%dN:%dS:%dL3:%dL2:%dL1:%dC:%dH:%s:%s",
+    size = asprintf(&sig, "%dN:%dS:%dL3:%dL2:%dL1:%dC:%dH:%s:%s",
              nnuma, nsocket, nl3, nl2, nl1, ncore, nhwt, arch, endian);
+    if (size == 0)
+        return NULL;
+
     return sig;
 }
 
@@ -2257,6 +2266,7 @@ char* opal_hwloc_base_get_locality_string(hwloc_topology_t topo,
     unsigned depth, d, width, w;
     hwloc_cpuset_t cpuset, result;
     hwloc_obj_type_t type;
+    int size = 0;
 
     /* if this proc is not bound, then there is no locality. We
      * know it isn't bound if the cpuset is NULL, or if it is
@@ -2320,14 +2330,14 @@ char* opal_hwloc_base_get_locality_string(hwloc_topology_t topo,
             hwloc_bitmap_list_asprintf(&tmp, result);
             switch(obj->type) {
                 case HWLOC_OBJ_NODE:
-                    asprintf(&t2, "%sNM%s:", (NULL == locality) ? "" : locality, tmp);
+                    size = asprintf(&t2, "%sNM%s:", (NULL == locality) ? "" : locality, tmp);
                     if (NULL != locality) {
                         free(locality);
                     }
                     locality = t2;
                     break;
                 case HWLOC_OBJ_SOCKET:
-                    asprintf(&t2, "%sSK%s:", (NULL == locality) ? "" : locality, tmp);
+                    size = asprintf(&t2, "%sSK%s:", (NULL == locality) ? "" : locality, tmp);
                     if (NULL != locality) {
                         free(locality);
                     }
@@ -2336,21 +2346,21 @@ char* opal_hwloc_base_get_locality_string(hwloc_topology_t topo,
 #if HWLOC_API_VERSION < 0x20000
                 case HWLOC_OBJ_CACHE:
                     if (3 == obj->attr->cache.depth) {
-                        asprintf(&t2, "%sL3%s:", (NULL == locality) ? "" : locality, tmp);
+                        size = asprintf(&t2, "%sL3%s:", (NULL == locality) ? "" : locality, tmp);
                         if (NULL != locality) {
                             free(locality);
                         }
                         locality = t2;
                         break;
                     } else if (2 == obj->attr->cache.depth) {
-                        asprintf(&t2, "%sL2%s:", (NULL == locality) ? "" : locality, tmp);
+                        size = asprintf(&t2, "%sL2%s:", (NULL == locality) ? "" : locality, tmp);
                         if (NULL != locality) {
                             free(locality);
                         }
                         locality = t2;
                         break;
                     } else {
-                        asprintf(&t2, "%sL1%s:", (NULL == locality) ? "" : locality, tmp);
+                        size = asprintf(&t2, "%sL1%s:", (NULL == locality) ? "" : locality, tmp);
                         if (NULL != locality) {
                             free(locality);
                         }
@@ -2360,21 +2370,21 @@ char* opal_hwloc_base_get_locality_string(hwloc_topology_t topo,
                     break;
 #else
                 case HWLOC_OBJ_L3CACHE:
-                    asprintf(&t2, "%sL3%s:", (NULL == locality) ? "" : locality, tmp);
+                    size = asprintf(&t2, "%sL3%s:", (NULL == locality) ? "" : locality, tmp);
                     if (NULL != locality) {
                         free(locality);
                     }
                     locality = t2;
                     break;
                 case HWLOC_OBJ_L2CACHE:
-                    asprintf(&t2, "%sL2%s:", (NULL == locality) ? "" : locality, tmp);
+                    size = asprintf(&t2, "%sL2%s:", (NULL == locality) ? "" : locality, tmp);
                     if (NULL != locality) {
                         free(locality);
                     }
                     locality = t2;
                     break;
                 case HWLOC_OBJ_L1CACHE:
-                    asprintf(&t2, "%sL1%s:", (NULL == locality) ? "" : locality, tmp);
+                    size = asprintf(&t2, "%sL1%s:", (NULL == locality) ? "" : locality, tmp);
                     if (NULL != locality) {
                         free(locality);
                     }
@@ -2382,14 +2392,14 @@ char* opal_hwloc_base_get_locality_string(hwloc_topology_t topo,
                     break;
 #endif
                 case HWLOC_OBJ_CORE:
-                    asprintf(&t2, "%sCR%s:", (NULL == locality) ? "" : locality, tmp);
+                    size = asprintf(&t2, "%sCR%s:", (NULL == locality) ? "" : locality, tmp);
                     if (NULL != locality) {
                         free(locality);
                     }
                     locality = t2;
                     break;
                 case HWLOC_OBJ_PU:
-                    asprintf(&t2, "%sHT%s:", (NULL == locality) ? "" : locality, tmp);
+                    size = asprintf(&t2, "%sHT%s:", (NULL == locality) ? "" : locality, tmp);
                     if (NULL != locality) {
                         free(locality);
                     }
@@ -2405,6 +2415,9 @@ char* opal_hwloc_base_get_locality_string(hwloc_topology_t topo,
     }
     hwloc_bitmap_free(result);
     hwloc_bitmap_free(cpuset);
+
+    if (size == 0)
+	opal_output (0, "Size for hwloc is 0");
 
     /* remove the trailing colon */
     if (NULL != locality) {
