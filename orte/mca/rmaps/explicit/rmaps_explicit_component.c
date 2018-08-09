@@ -61,8 +61,8 @@ _parse_places (char *places, uint64_t *num, uint8_t **locations)
     char *s;
     char *token;
     uint64_t idx = 0;
-    uint64_t array_idx = 0;
-    const char delimiters[] = ":";
+    uint64_t cnt = 0;
+    const char delimiters[] = ",";
     uint8_t *_l;
 
     if (locations == NULL || *locations == NULL)
@@ -76,7 +76,7 @@ _parse_places (char *places, uint64_t *num, uint8_t **locations)
     _l = *locations;
 
     /*
-     * The places string looks like X:-:-:X, where "X" is a place where a rank should be
+     * The places string looks like X:-:-:X, where "X" is a place where rank X should be
      * placed and "-" a place that should be left alone
      */
 
@@ -85,17 +85,19 @@ _parse_places (char *places, uint64_t *num, uint8_t **locations)
 
     do
     {
-        if (strcmp (token, "X") == 0)
+        if (strcmp (token, "-") != 0)
         {
-            fprintf (stderr, "[%s:%s:%d] Assigning rank # %d to place # %d\n", __FILE__, __func__, __LINE__, array_idx, idx);
-            _l[array_idx] = idx;
-            array_idx++;
+            int target_rank = atoi (token);
+            fprintf (stderr, "[%s:%s:%d] Assigning rank # %d to place # %d\n", __FILE__, __func__, __LINE__, target_rank, idx);
+            _l[target_rank] = idx;
+            cnt++;
         }
         idx++;
         token = strtok (NULL, delimiters);
     } while (token != NULL);
 
-    *num = array_idx;
+    *num = cnt;
+    fprintf (stderr, "[%s:%s:%d] Done\n", __FILE__, __func__, __LINE__);
 
     return ORTE_SUCCESS;
 }
@@ -110,19 +112,18 @@ _parse_layout_desc (char *layout_desc, rmaps_explicit_layout_t *layout)
     int rc;
     char *s;
     char *token;
-    const char delimiters[] = "[:]";
+    const char delimiters[] = "[,]";
     const char block_delimiters[] = "[]";
 
     s = strdupa (layout_desc);
     token = strtok (s, delimiters);
 
-    if (strcasecmp (token, "manual") == 0)
+    while (token != NULL)
     {
-        (*layout).mode = RMAPS_EXPLICIT_MODE_MANUAL;
-
-        token = strtok (NULL, delimiters);
-        if (strcasecmp (token, "mpi") == 0)
+        if (strcasecmp (token, "MPI") == 0 || strcasecmp (token, "mpi") == 0)
         {
+            fprintf (stderr, "Found MPI block\n");
+            token = strtok (NULL, delimiters);
             token = strtok (NULL, delimiters);
             (*layout).target = strdup (token);
 
@@ -135,30 +136,8 @@ _parse_layout_desc (char *layout_desc, rmaps_explicit_layout_t *layout)
             if (rc != ORTE_SUCCESS)
                 return ORTE_ERROR;
         }
-    }
-
-    if (strcasecmp (token, "auto") == 0)
-    {
-        (*layout).mode = RMAPS_EXPLICIT_MODE_AUTO;
-
         token = strtok (NULL, delimiters);
-        if (strcasecmp (token, "mpi") == 0)
-        {
-            token = strtok (NULL, delimiters);
-            (*layout).scope = atoi (token);
-
-            token = strtok (NULL, delimiters);
-            (*layout).policy = _token_to_policy (token);
-
-            token = strtok (NULL, delimiters);
-            (*layout).n_per_scope = atoi (token);
-
-            token = strtok (NULL, delimiters);
-            (*layout).n_pes = atoi (token);
-        }
     }
-
-    //free (s);
 
     return ORTE_SUCCESS;
 }
@@ -232,15 +211,6 @@ orte_rmaps_explicit_register (void)
         fprintf (stderr, "ERROR: _parse_layout_desc() failed\n");
     }
 
-    if (layout.mode == RMAPS_EXPLICIT_MODE_AUTO)
-    {
-        fprintf (stderr, "SCOPE: %d\n", layout.scope);
-        fprintf (stderr, "POLICY: %d\n", layout.policy);
-        fprintf (stderr, "NUM_PER_SCOPE: %d\n", layout.n_per_scope);
-        fprintf (stderr, "NUM_PE: %d\n", layout.n_pes);
-    }
-
-    if (layout.mode == RMAPS_EXPLICIT_MODE_MANUAL)
     {
         uint64_t i;
 
@@ -258,7 +228,6 @@ orte_rmaps_explicit_register (void)
         }
         _parse_topo (opal_hwloc_topology, layout.target);
     }
-
 
     return ORTE_SUCCESS;
 }

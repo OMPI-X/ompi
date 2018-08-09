@@ -85,9 +85,6 @@ int explicit_mapper(orte_job_t *jdata, rmaps_explicit_layout_t layout)
     bool initial_map=true;
     uint64_t n_slots_per_node;
 
-    if (layout.mode != RMAPS_EXPLICIT_MODE_MANUAL)
-        return ORTE_ERROR;
-
     /* only handle initial launch of loadbalanced
      * or NPERxxx jobs - allow restarting of failed apps
      */
