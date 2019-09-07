@@ -202,13 +202,21 @@ orte_rmaps_explicit_register (void)
                                             &_pe_layout);
 
     fprintf (stderr, "Priority: %d\n", _priority);
-    fprintf (stderr, "Layout: %s\n", _pe_layout);
+
+    if (NULL == _pe_layout) {
+        fprintf (stderr, "ERROR: _pe_layout is not defined (NULL)\n");
+        fprintf (stderr, "INFO: Maybe Missing MCA 'rmaps_explicit_layout'\n");
+        return ORTE_ERROR;
+    } else {
+        fprintf (stderr, "Layout: %s\n", _pe_layout);
+    }
 
     /* Parse the layout */
     rc = _parse_layout_desc (_pe_layout, &layout);
     if (rc != ORTE_SUCCESS)
     {
         fprintf (stderr, "ERROR: _parse_layout_desc() failed\n");
+        return ORTE_ERROR;
     }
 
     {

@@ -247,6 +247,11 @@ int explicit_mapper(orte_job_t *jdata, rmaps_explicit_layout_t layout)
                                                        lowest, cache_level,
                                                        obj_idx,
                                                        OPAL_HWLOC_AVAILABLE);
+                if (NULL == obj) {
+                    fprintf(stderr, "[%s:%d] ERROR: %s() topology obj was NULL\n", __FILE__, __LINE__, __func__);
+                    rc = ORTE_ERR_NOT_INITIALIZED;
+                    goto error;
+                }
                 if (NULL == (proc = orte_rmaps_base_setup_proc(jdata, node, idx)))
                 {
                     rc = ORTE_ERR_OUT_OF_RESOURCE;
