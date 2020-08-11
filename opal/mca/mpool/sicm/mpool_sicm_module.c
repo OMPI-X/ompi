@@ -76,7 +76,7 @@ mpool_sicm_alloc (mca_mpool_base_module_t *module, size_t size, size_t align, ui
 	if (dev == NULL)
 		return NULL;
 
-	arena = sicm_arena_create (0, dev);
+	arena = sicm_arena_create (0, SICM_ALLOC_RELAXED, dev);
 	if (arena == NULL)
 		return NULL;
 

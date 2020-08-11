@@ -14,7 +14,7 @@
 #define MCA_MPOOL_SICM_H
 
 #include "opal_config.h"
-#include "opal/threads/mutex_unix.h"
+#include "opal/mca/threads/mutex.h"
 
 #include "opal/mca/event/event.h"
 #include "opal/mca/mpool/mpool.h"
