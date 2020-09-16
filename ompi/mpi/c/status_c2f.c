@@ -95,8 +95,9 @@ int MPI_Status_c2f(const MPI_Status *c_status, MPI_Fint *f_status)
        get truncated).  But if sizeof(int) == sizeof(INTEGER) or
        sizeof(int) < sizeof(INTEGER), everything should be kosher. */
     c_ints = (const int*)c_status;
-    for( i = 0; i < (int)(sizeof(MPI_Status) / sizeof(int)); i++ )
+    for( i = 0; i < (int)(sizeof(MPI_Status) / sizeof(int)); i++ ) {
         f_status[i] = OMPI_INT_2_FINT(c_ints[i]);
+    }
 
     return MPI_SUCCESS;
 }

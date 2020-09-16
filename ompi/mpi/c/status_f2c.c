@@ -75,8 +75,9 @@ int MPI_Status_f2c(const MPI_Fint *f_status, MPI_Status *c_status)
        We can't use OMPI_FINT_2_INT here because of some complications
        with include files.  :-( So just do the casting manually. */
     c_ints = (int*)c_status;
-    for( i = 0; i < (int)(sizeof(MPI_Status) / sizeof(int)); i++ )
+    for( i = 0; i < (int)(sizeof(MPI_Status) / sizeof(int)); i++ ) {
         c_ints[i] = (int)f_status[i];
+    }
 
     return MPI_SUCCESS;
 }
