@@ -1,6 +1,6 @@
 /*
- * Copyright (c)	2018	UT-Battelle, LLC
- * 				All rights reserved.
+ * Copyright (c) 2018-2020 UT-Battelle, LLC
+ *                         All rights reserved.
  *
  * $COPYRIGHT$
  *
@@ -96,6 +96,8 @@ _mpool_sicm_extend_module_list (void)
 	int n_mods = mca_mpool_sicm_component.module_count + 1;
 	mca_mpool_sicm_module_t *_new_mod = NULL;
 
+	opal_output_verbose(5, SICM_OUT, "mpool:sicm module_count = %d\n", n_mods);
+
 	if (n_mods == 1)
 	{
 		mca_mpool_sicm_component.modules = (mca_mpool_sicm_module_t**) malloc (sizeof (mca_mpool_sicm_module_t*));
@@ -159,12 +161,16 @@ static void
 _parse_hints (const char *hints, int *priority, mca_mpool_base_module_t **module)
 {
 	int _priority = 0;
-	sicm_device_tag device_type = SICM_DRAM;
+	//sicm_device_tag device_type = SICM_DRAM;
+	sicm_device_tag device_type = -1;
 
 	if (hints)
 	{
 		char **_hints;
 		int _i = 0;
+
+		OPAL_OUTPUT_VERBOSE((20, SICM_OUT,
+		                    "mpool:sicm DEBUG parsing hints='%s'\n", hints));
 
 		// _hints is NULL terminated
 		_hints = opal_argv_split (hints, ',');
@@ -199,12 +205,29 @@ _parse_hints (const char *hints, int *priority, mca_mpool_base_module_t **module
 			{
 				// Because SICM does not define enums in a precise way, we need to explicitely
 				// figure out what the tag is
-				if (strcmp (_val, "SICM_KNL_HBM") == 0)
+				if (strcmp (_val, "SICM_DRAM") == 0) {
+					device_type = SICM_DRAM;
+					OPAL_OUTPUT_VERBOSE((10, SICM_OUT,
+					                    "mpool:sicm DEBUG type %s (device_type=%d)\n",
+					                    "SICM_DRAM",
+					                    device_type));
+				}
+
+				if (strcmp (_val, "SICM_KNL_HBM") == 0) {
 					device_type = SICM_KNL_HBM;
+                    			OPAL_OUTPUT_VERBOSE((10, SICM_OUT,
+					                    "mpool:sicm DEBUG type %s (device_type=%d)\n",
+					                    "SICM_KNL_HBM",
+					                    device_type));
+				}
 
-				if (strcmp (_val, "SICM_POWERPC_HBM") == 0)
+				if (strcmp (_val, "SICM_POWERPC_HBM") == 0) {
 					device_type = SICM_POWERPC_HBM;
-
+					OPAL_OUTPUT_VERBOSE((10, SICM_OUT,
+					                    "mpool:sicm DEBUG type %s (device_type=%d)\n",
+					                    "SICM_POWERPC_HBM",
+					                    device_type));
+				}
 			}
 
 			// TODO: make sure we get all the hints to drive the memory operation
@@ -220,36 +243,77 @@ _parse_hints (const char *hints, int *priority, mca_mpool_base_module_t **module
 		int i = 0;
 		mca_mpool_sicm_module_t *_m = NULL;
 
+		/* If still have sentinal, we likely got back user input */
+		if (device_type == -1) {
+			opal_output_verbose(1, SICM_OUT,
+			        "\n**********************************************************\n"
+			        "mpool:sicm WARN Possibly bad mpool hint 'sicm_device_type'?\n"
+			        "**********************************************************\n");
+        }
+
 		// We find the SICM module instance that handles the target type of device
 		do
 		{
+			OPAL_OUTPUT_VERBOSE((20, SICM_OUT,
+			    "mpool:sicm DEBUG MODULE CHECK module[%d].target_device_type = %d, device_type = %d\n",
+			    i,
+			    mca_mpool_sicm_component.modules[i]->target_device_type,
+			    device_type));
+
 			if (mca_mpool_sicm_component.modules[i]->target_device_type == device_type)
 			{
+				OPAL_OUTPUT_VERBOSE((20, SICM_OUT,
+				    "mpool:sicm DEBUG MODULE FOUND - TARGET_DEVICE_TYPE => %d\n",
+				    device_type));
 				_m = mca_mpool_sicm_component.modules[i];
 				break;
 			}
 
+#if 0
 			if (mca_mpool_sicm_component.modules[i]->target_device_type == INVALID_TAG)
 			{
-				mca_mpool_sicm_component.modules[i]->target_device_type = device_type;
+				fprintf(stderr, "WARN: Ignore requests for INVALID_TAG devices - TARGET_DEVICE_TYPE => %d (INVALID_TAG)\n",
+					mca_mpool_sicm_component.modules[i]->target_device_type);
 				_m = mca_mpool_sicm_component.modules[i];
 				break;
 			}
+#endif
 
 			i++;
 		} while (i < mca_mpool_sicm_component.module_count);
 
+        /*
+         * TODO: Check if device_type is in list of available devices
+         *      (search component.devices list).  Example: May ask
+         *      for KNL_HBM but not on KNL machine so no KNL_HBM device.
+         *
+         *       if ( _mpool_sicm_check_supported(device_type) ) ...
+         */
+
 		if (_m == NULL)
 		{
+			OPAL_OUTPUT_VERBOSE((20, SICM_OUT,
+			     "mpool:sicm DEBUG SICM MPOOL NOT FIND VALID MODULE SO CREATE NEW ONE\n"));
+
 			// We did not find a suitable module so we create a new one
 			_mpool_sicm_extend_module_list ();
-			assert (mca_mpool_sicm_component.modules[mca_mpool_sicm_component.module_count]->target_device_type == INVALID_TAG);
-			_m = mca_mpool_sicm_component.modules[mca_mpool_sicm_component.module_count];
+			assert (mca_mpool_sicm_component.modules[(mca_mpool_sicm_component.module_count - 1)]->target_device_type == INVALID_TAG);
+			_m = mca_mpool_sicm_component.modules[(mca_mpool_sicm_component.module_count - 1)];
 			_m->target_device_type = device_type;
+
+			OPAL_OUTPUT_VERBOSE((20, SICM_OUT,
+			     "mpool:sicm DEBUG ASSIGNED device_type=%d to new module (module_count=%d)\n", device_type, mca_mpool_sicm_component.module_count));
 		}
+
+		OPAL_OUTPUT_VERBOSE((20, SICM_OUT,
+		     "mpool:sicm DEBUG SICM MPOOL module.target_device_type=%d\n",
+		     _m->target_device_type));
 
 		*module = (mca_mpool_base_module_t*)_m;
 	}
+
+	opal_output_verbose(5, SICM_OUT,
+	     "mpool:sicm SICM priority=%d\n", _priority);
 
 	*priority = _priority;
 }
@@ -257,7 +321,6 @@ _parse_hints (const char *hints, int *priority, mca_mpool_base_module_t **module
 static int
 mpool_sicm_query (const char *hints, int *priority, mca_mpool_base_module_t **module)
 {
-
 	// hints is a string of comma-sperated keys that are used to pass parameters in
 	if (hints)
 	{

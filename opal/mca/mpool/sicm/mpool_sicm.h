@@ -18,8 +18,11 @@
 
 #include "opal/mca/event/event.h"
 #include "opal/mca/mpool/mpool.h"
+#include "opal/mca/mpool/base/base.h"
 
 #include "sicm_low.h"
+
+#define SICM_OUT opal_mpool_base_framework.framework_output
 
 BEGIN_C_DECLS
 
