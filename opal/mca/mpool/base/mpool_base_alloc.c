@@ -81,10 +81,17 @@ void *mca_mpool_base_alloc(size_t size, opal_info_t *info, const char *hints)
     }
 
     if (NULL == mem) {
-        /* fall back on malloc */
-        mem = malloc(size);
 
-        mca_mpool_base_tree_item_put (mpool_tree_item);
+        /* TJN: Adding quick flag for testing to avoid malloc fallback */
+        if ( getenv("OMPIX_MPOOL_NO_FALLBACK") ) {
+            opal_output(0, "### mpool:base NOTE - Avoiding malloc fallback (OMPIX_MPOOL_NO_FALLBACK is set)\n");
+        } else {
+            /* fall back on malloc */
+            mem = malloc(size);
+
+            mca_mpool_base_tree_item_put (mpool_tree_item);
+        }
+
     } else {
         mpool_tree_item->mpool = mpool;
         mpool_tree_item->key = mem;
