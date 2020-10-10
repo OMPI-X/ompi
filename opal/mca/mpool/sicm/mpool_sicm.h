@@ -26,6 +26,23 @@
 
 BEGIN_C_DECLS
 
+
+/* TJN: Temporary debug macros (these should be removed) */
+#define DBG_ENTER(m)                                        \
+    do {                                                    \
+        OPAL_OUTPUT_VERBOSE((100, SICM_OUT,                 \
+                            "DBG:  >>  ENTER %s() %s\n",    \
+                            __func__, m));                  \
+    } while(0)
+
+#define DBG_EXIT(m)                                         \
+    do {                                                    \
+        OPAL_OUTPUT_VERBOSE((100, SICM_OUT,                 \
+                            "DBG:  <<  EXIT  %s() %s\n",    \
+                            __func__, m));                  \
+    } while(0)
+
+
 struct mca_mpool_sicm_module_t {
 	mca_mpool_base_module_t super;
 	bool			sicm_is_initialized;
